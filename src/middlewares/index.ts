@@ -1,0 +1,2 @@
+export { notFoundHandler } from './notFound';
+
