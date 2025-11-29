@@ -5,8 +5,10 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "socket:dev": "tsx watch src/socket/server.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "socket:start": "node dist/socket/server.js",
     "prisma:generate": "prisma generate --schema=src/prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema=src/prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema=src/prisma/schema.prisma",
@@ -31,6 +33,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.7.5",
+    "socket.io-client": "^4.8.1",
     "stripe": "^14.21.0",
     "zod": "^3.23.8"
   },
@@ -46,4 +49,3 @@
     "typescript": "^5.6.2"
   }
 }
-

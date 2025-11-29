@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Order Management API",
-    "description": "Complete API collection for Order Management system with authentication",
+    "description": "Complete API collection for Order Management system with:\n- JWT Authentication\n- Order Management\n- Stripe & PayPal Payment Integration\n- Webhook Handlers\n- Socket.IO Real-Time Updates\n\n## Quick Start:\n1. Import environment file: `Order-Management-API.postman_environment.json`\n2. Register/Login to get access token\n3. Create orders and test payment flow\n4. Use Socket.IO for real-time order updates (see Socket.IO section)\n\n## Socket.IO Testing:\nPostman doesn't support Socket.IO natively. Use browser console or Socket.IO client tools. See \"Socket.IO Real-Time Updates\" folder for detailed instructions.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "order-management-api"
   },
@@ -130,6 +130,10 @@
                   "        // Save tokens to environment",
                   "        pm.environment.set('access_token', jsonData.data.accessToken);",
                   "        pm.environment.set('refresh_token', jsonData.data.refreshToken);",
+                  "        ",
+                  "        console.log('✅ Login successful!');",
+                  "        console.log('📝 Access token saved to environment');",
+                  "        console.log('🔗 Use this token for Socket.IO connection: ' + jsonData.data.accessToken);",
                   "    });",
                   "}"
                 ],
@@ -206,6 +210,31 @@
         },
         {
           "name": "Get Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"Profile retrieved successfully\", function () {",
+                  "        pm.response.to.have.status(200);",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.user).to.have.property('id');",
+                  "        ",
+                  "        // Save user info to environment",
+                  "        if (jsonData.data.user) {",
+                  "            pm.environment.set('user_id', jsonData.data.user.id);",
+                  "            pm.environment.set('user_email', jsonData.data.user.email);",
+                  "            pm.environment.set('user_role', jsonData.data.user.role);",
+                  "        }",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -224,7 +253,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "profile"]
             },
-            "description": "Get the authenticated user's profile. Requires authentication via cookie or Bearer token."
+            "description": "Get the authenticated user's profile. Requires authentication via cookie or Bearer token. User ID is automatically saved to environment for Socket.IO testing."
           },
           "response": []
         },
@@ -333,7 +362,7 @@
       "name": "Order Management",
       "item": [
         {
-          "name": "Create Order",
+          "name": "Create Order (Stripe)",
           "event": [
             {
               "listen": "test",
@@ -348,13 +377,17 @@
                   "        pm.expect(jsonData.data.order).to.have.property('totalAmount');",
                   "        pm.expect(jsonData.data.order).to.have.property('paymentMethod');",
                   "        pm.expect(jsonData.data.order).to.have.property('items');",
-                  "        pm.expect(jsonData.data.payment).to.have.property('clientSecret');",
+                  "        pm.expect(jsonData.data.payment).to.have.property('checkoutUrl');",
                   "        pm.expect(jsonData.data.payment.paymentMethod).to.equal('STRIPE');",
                   "        ",
                   "        // Save order ID and payment details to environment",
                   "        pm.environment.set('order_id', jsonData.data.order.id);",
-                  "        pm.environment.set('stripe_client_secret', jsonData.data.payment.clientSecret);",
-                  "        pm.environment.set('stripe_payment_intent_id', jsonData.data.payment.paymentIntentId);",
+                  "        pm.environment.set('stripe_checkout_url', jsonData.data.payment.checkoutUrl);",
+                  "        pm.environment.set('stripe_session_id', jsonData.data.payment.sessionId);",
+                  "        ",
+                  "        console.log('Order ID:', jsonData.data.order.id);",
+                  "        console.log('Checkout URL:', jsonData.data.payment.checkoutUrl);",
+                  "        console.log('👉 Copy the checkoutUrl and open it in your browser to complete payment');",
                   "    });",
                   "}"
                 ],
@@ -382,19 +415,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"items\": [\n    {\n      \"title\": \"Keyboard\",\n      \"price\": 120,\n      \"quantity\": 1\n    },\n    {\n      \"title\": \"Mouse\",\n      \"price\": 79.99,\n      \"quantity\": 2\n    }\n  ],\n  \"paymentMethod\": \"STRIPE\"\n}"
+              "raw": "{\n  \"items\": [\n    {\n      \"title\": \"Gaming Mouse\",\n      \"price\": 79.99,\n      \"quantity\": 1\n    },\n    {\n      \"title\": \"Mechanical Keyboard\",\n      \"price\": 149.99,\n      \"quantity\": 1\n    }\n  ],\n  \"paymentMethod\": \"STRIPE\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/orders",
               "host": ["{{base_url}}"],
               "path": ["api", "orders"]
             },
-            "description": "Create a new order. Requires authentication. Calculates total automatically."
+            "description": "Create a new order with Stripe payment. Returns a checkoutUrl that you can redirect users to for payment. After payment, user will be redirected back and webhook will update order status. Socket.IO will emit real-time update to the user."
           },
           "response": []
         },
         {
-          "name": "Create Order with PayPal",
+          "name": "Create Order (PayPal)",
           "event": [
             {
               "listen": "test",
@@ -447,7 +480,104 @@
               "host": ["{{base_url}}"],
               "path": ["api", "orders"]
             },
-            "description": "Create a new order with PayPal payment method"
+            "description": "Create a new order with PayPal payment method. Returns an approvalUrl for PayPal checkout. After payment, webhook will update order status. Socket.IO will emit real-time update to the user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment URL",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payment/order/:orderId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payment", "order", ":orderId"],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": "{{order_id}}",
+                  "description": "Order ID"
+                }
+              ]
+            },
+            "description": "Get payment URL for an existing order. Returns checkoutUrl (Stripe) or approvalUrl (PayPal)."
+          },
+          "response": []
+        },
+        {
+          "name": "Payment Success",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payment/success?session_id=cs_test_xxx&order_id={{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payment", "success"],
+              "query": [
+                {
+                  "key": "session_id",
+                  "value": "cs_test_xxx",
+                  "description": "Stripe checkout session ID"
+                },
+                {
+                  "key": "order_id",
+                  "value": "{{order_id}}",
+                  "description": "Order ID"
+                }
+              ]
+            },
+            "description": "Payment success callback endpoint. Called by Stripe after successful payment. Returns JSON response with order details."
+          },
+          "response": []
+        },
+        {
+          "name": "Payment Cancel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payment/cancel?order_id={{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payment", "cancel"],
+              "query": [
+                {
+                  "key": "order_id",
+                  "value": "{{order_id}}",
+                  "description": "Order ID"
+                }
+              ]
+            },
+            "description": "Payment cancellation callback endpoint. Called by Stripe/PayPal when user cancels payment. Returns JSON response."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Socket.IO Real-Time Updates",
+      "item": [
+        {
+          "name": "Socket.IO Connection Guide",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            },
+            "description": "## Socket.IO Real-Time Updates\n\nPostman doesn't natively support Socket.IO. Use one of these methods:\n\n### Option 1: Browser Console (Recommended)\n1. Open browser DevTools (F12)\n2. Go to Console tab\n3. Run the code below:\n\n```javascript\n// Install socket.io-client first: <script src=\"https://cdn.socket.io/4.5.4/socket.io.min.js\"></script>\n\nconst socket = io('http://localhost:3000', {\n  query: {\n    token: 'YOUR_ACCESS_TOKEN_HERE' // Get from Postman: {{access_token}}\n  }\n});\n\nsocket.on('connected', (data) => {\n  console.log('✅ Connected to Socket.IO:', data);\n});\n\nsocket.on('orderUpdate', (data) => {\n  console.log('📦 Order Update:', data);\n  console.log('Order ID:', data.orderId);\n  console.log('Status:', data.orderStatus);\n  console.log('Payment Status:', data.paymentStatus);\n  console.log('Message:', data.message);\n});\n\nsocket.on('disconnect', () => {\n  console.log('❌ Disconnected from Socket.IO');\n});\n```\n\n### Option 2: Socket.IO Client Tool\nUse a tool like:\n- **Socket.IO Client** (Browser extension)\n- **Insomnia** (with Socket.IO plugin)\n- **Thunder Client** (VS Code extension)\n\n### Connection Details\n- **URL**: `http://localhost:3000`\n- **Authentication**: Pass JWT token in query params as `token`\n- **Events to listen**:\n  - `connected` - Connection confirmation\n  - `orderUpdate` - Order status/payment updates\n  - `pong` - Response to ping\n\n### Test Flow\n1. Connect to Socket.IO with your access token\n2. Create an order via API\n3. Complete payment (Stripe/PayPal)\n4. Receive real-time `orderUpdate` event\n\n### Example Event Payload\n```json\n{\n  \"orderId\": \"abc-123\",\n  \"paymentStatus\": \"PAID\",\n  \"orderStatus\": \"PROCESSING\",\n  \"message\": \"Payment successful! Your order is now processing.\",\n  \"timestamp\": \"2024-11-29T10:30:00.000Z\"\n}\n```"
           },
           "response": []
         }
@@ -467,6 +597,9 @@
                   "    pm.response.to.have.status(200);",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('received');",
+                  "    ",
+                  "    console.log('✅ Webhook received. Order status will be updated.');",
+                  "    console.log('📡 Socket.IO will emit orderUpdate event to user');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -488,14 +621,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"evt_test_webhook\",\n  \"object\": \"event\",\n  \"api_version\": \"2024-06-20.acacia\",\n  \"created\": 1326853478,\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_test_payment_intent\",\n      \"object\": \"payment_intent\",\n      \"amount\": 12000,\n      \"currency\": \"usd\",\n      \"metadata\": {\n        \"orderId\": \"{{order_id}}\"\n      },\n      \"status\": \"succeeded\"\n    }\n  },\n  \"livemode\": false,\n  \"pending_webhooks\": 1,\n  \"request\": {\n    \"id\": null,\n    \"idempotency_key\": null\n  },\n  \"type\": \"payment_intent.succeeded\"\n}"
+              "raw": "{\n  \"id\": \"evt_test_webhook\",\n  \"object\": \"event\",\n  \"api_version\": \"2024-06-20.acacia\",\n  \"created\": 1326853478,\n  \"data\": {\n    \"object\": {\n      \"id\": \"cs_test_checkout_session\",\n      \"object\": \"checkout.session\",\n      \"payment_status\": \"paid\",\n      \"metadata\": {\n        \"orderId\": \"{{order_id}}\"\n      },\n      \"status\": \"complete\"\n    }\n  },\n  \"livemode\": false,\n  \"pending_webhooks\": 1,\n  \"request\": {\n    \"id\": null,\n    \"idempotency_key\": null\n  },\n  \"type\": \"checkout.session.completed\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/webhooks/stripe",
               "host": ["{{base_url}}"],
               "path": ["api", "webhooks", "stripe"]
             },
-            "description": "Stripe webhook endpoint for payment status updates. Note: In production, Stripe automatically sends webhooks with proper signature. For testing, use Stripe CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`"
+            "description": "Stripe webhook endpoint for payment status updates. When payment succeeds, this webhook:\n1. Updates order status in database\n2. Emits Socket.IO event to user (orderUpdate)\n3. User receives real-time notification\n\nNote: In production, Stripe automatically sends webhooks with proper signature. For testing, use Stripe CLI or localtunnel with your webhook URL."
           },
           "response": []
         },
@@ -533,7 +666,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "webhooks", "paypal"]
             },
-            "description": "PayPal webhook endpoint for payment status updates. Note: In production, PayPal automatically sends webhooks. Configure in PayPal Developer Dashboard."
+            "description": "PayPal webhook endpoint for payment status updates. When payment succeeds, this webhook:\n1. Updates order status in database\n2. Emits Socket.IO event to user (orderUpdate)\n3. User receives real-time notification\n\nNote: In production, PayPal automatically sends webhooks. Configure in PayPal Developer Dashboard."
           },
           "response": []
         }

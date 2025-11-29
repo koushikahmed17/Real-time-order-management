@@ -2,24 +2,16 @@ import express, { Application } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
-import { createServer } from "http";
 import routes from "./routes";
 import webhookRoutes from "./routes/webhook.routes";
 import { errorHandler } from "./utils/errorHandler";
 import { notFoundHandler } from "./middlewares";
-import { initializeSocket } from "./socket";
 
 // Load environment variables
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
-
-// Create HTTP server for Socket.IO
-const server = createServer(app);
-
-// Initialize Socket.IO
-initializeSocket(server);
 
 // Middlewares
 app.use(cors({
@@ -48,9 +40,11 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start server
-server.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Express server is running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📡 Socket.IO server runs separately on port ${process.env.SOCKET_PORT || 3001}`);
+  console.log(`💡 Run 'npm run socket:dev' in another terminal to start Socket.IO server`);
 });
 
 export default app;

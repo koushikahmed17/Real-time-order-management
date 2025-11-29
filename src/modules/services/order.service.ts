@@ -2,6 +2,7 @@ import prisma from "../../prisma/client";
 import { AppError } from "../../utils/errorHandler";
 import { PaymentMethod, PaymentStatus, OrderStatus } from "@prisma/client";
 import { PaymentService } from "./payment.service";
+import { SocketService } from "./socket.service";
 
 export interface OrderItem {
   title: string;
@@ -130,6 +131,54 @@ export class OrderService {
       order.totalAmount,
       items
     );
+  }
+
+  /**
+   * Update order status and emit Socket.IO event
+   */
+  async updateOrderStatus(
+    orderId: string,
+    orderStatus: OrderStatus,
+    updatePaymentStatus?: PaymentStatus
+  ): Promise<OrderResponse> {
+    // Get order to find userId
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Update order status
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        orderStatus,
+        ...(updatePaymentStatus && { paymentStatus: updatePaymentStatus }),
+      },
+    });
+
+    // Emit Socket.IO event to notify user
+    try {
+      const socketService = new SocketService();
+      socketService.emitOrderStatusChange(order.userId, orderId, orderStatus);
+    } catch (error) {
+      console.error("Failed to emit order status update event:", error);
+      // Don't throw - order update should succeed even if socket fails
+    }
+
+    return {
+      id: updatedOrder.id,
+      userId: updatedOrder.userId,
+      items: updatedOrder.items as OrderItem[],
+      totalAmount: updatedOrder.totalAmount,
+      paymentMethod: updatedOrder.paymentMethod,
+      paymentStatus: updatedOrder.paymentStatus,
+      orderStatus: updatedOrder.orderStatus,
+      createdAt: updatedOrder.createdAt,
+      updatedAt: updatedOrder.updatedAt,
+    };
   }
 }
 

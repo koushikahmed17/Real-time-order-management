@@ -2,6 +2,7 @@ import paypal from "@paypal/checkout-server-sdk";
 import prisma from "../../prisma/client";
 import { AppError } from "../../utils/errorHandler";
 import { PaymentStatus, OrderStatus } from "@prisma/client";
+import { SocketService } from "./socket.service";
 
 // PayPal environment setup
 function paypalEnvironment() {
@@ -167,6 +168,20 @@ export class PayPalService {
    * Handle successful payment
    */
   private async handlePaymentSuccess(orderId: string): Promise<void> {
+    // Get order to find userId
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        userId: true,
+        totalAmount: true,
+      },
+    });
+
+    if (!order) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Update order status
     await prisma.order.update({
       where: { id: orderId },
       data: {
@@ -174,18 +189,49 @@ export class PayPalService {
         orderStatus: OrderStatus.PROCESSING,
       },
     });
+
+    // Emit Socket.IO event to notify user
+    try {
+      const socketService = new SocketService();
+      socketService.emitPaymentSuccess(order.userId, orderId, order.totalAmount);
+    } catch (error) {
+      console.error("Failed to emit payment success event:", error);
+      // Don't throw - webhook should still succeed even if socket fails
+    }
   }
 
   /**
    * Handle failed payment
    */
   private async handlePaymentFailure(orderId: string): Promise<void> {
+    // Get order to find userId
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!order) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Update order status
     await prisma.order.update({
       where: { id: orderId },
       data: {
         paymentStatus: PaymentStatus.FAILED,
       },
     });
+
+    // Emit Socket.IO event to notify user
+    try {
+      const socketService = new SocketService();
+      socketService.emitPaymentFailure(order.userId, orderId);
+    } catch (error) {
+      console.error("Failed to emit payment failure event:", error);
+      // Don't throw - webhook should still succeed even if socket fails
+    }
   }
 }
 
