@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import authRoutes from './auth.routes';
 // import exampleRoutes from './example.routes';
 
 const router = Router();
@@ -11,6 +12,9 @@ router.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Auth routes
+router.use('/auth', authRoutes);
 
 // Import and use other route modules here
 // Example:

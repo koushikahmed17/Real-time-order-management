@@ -8,6 +8,9 @@ A robust Express.js REST API built with TypeScript, PostgreSQL, Prisma ORM, and 
 - ✅ PostgreSQL database with Prisma ORM
 - ✅ Zod schema validation
 - ✅ Central error handling
+- ✅ JWT authentication with bcrypt password hashing
+- ✅ Cookie-based token storage
+- ✅ Role-based access control (CUSTOMER, ADMIN)
 - ✅ Socket.IO for real-time communication
 - ✅ Organized folder structure
 - ✅ Type-safe database queries
@@ -44,9 +47,11 @@ src/
    ```bash
    cp env.example .env
    ```
-   Edit `.env` and update the `DATABASE_URL` with your PostgreSQL connection string:
+   Edit `.env` and update the required variables:
    ```
    DATABASE_URL="postgresql://username:password@localhost:5432/order_management?schema=public"
+   JWT_SECRET="your-secret-key-change-this-in-production"
+   JWT_EXPIRES_IN="7d"
    ```
 
 4. Generate Prisma Client:
@@ -81,6 +86,24 @@ The server will start on `http://localhost:3000` (or the port specified in your 
 
 ### Health Check
 - `GET /api/health` - Check server status
+
+### Authentication
+- `POST /api/auth/register` - Register a new user
+  - Body: `{ name, email, password, phone?, address?, role? }`
+  - Role: `CUSTOMER` (default) or `ADMIN`
+  - Returns: User data (password excluded) and sets JWT token in cookie
+  
+- `POST /api/auth/login` - Login user
+  - Body: `{ email, password }`
+  - Returns: User data and sets JWT token in cookie
+
+- `GET /api/auth/profile` - Get authenticated user's profile (Protected)
+  - Requires: Authentication cookie or Bearer token
+  - Returns: Current user's profile information
+
+- `POST /api/auth/logout` - Logout user
+  - Clears the authentication cookie
+  - Returns: Success message
 
 ### Example Routes (can be customized)
 - `GET /api/examples` - Get all examples
@@ -120,6 +143,90 @@ Prisma is used as the ORM. To modify the database schema:
 1. Edit `src/prisma/schema.prisma`
 2. Run `npm run prisma:migrate`
 3. Prisma Client will be automatically regenerated
+
+## Authentication
+
+The project includes JWT-based authentication with the following features:
+
+### Password Hashing
+Passwords are hashed using bcrypt with 10 salt rounds before storing in the database.
+
+### JWT Tokens
+- Tokens are generated upon successful registration/login
+- Tokens are stored in HTTP-only cookies for security
+- Token expiration is configurable via `JWT_EXPIRES_IN` environment variable (default: 7 days)
+
+### Protected Routes
+Use the `authenticate` middleware to protect routes:
+
+```typescript
+import { authenticate, authorize } from '../middlewares';
+
+// Protect route - requires authentication
+router.get('/profile', authenticate, controller.getProfile);
+
+// Protect route - requires ADMIN role
+router.delete('/users/:id', authenticate, authorize('ADMIN'), controller.deleteUser);
+```
+
+### Role-Based Access Control
+Two roles are available:
+- `CUSTOMER` - Default role for registered users
+- `ADMIN` - Administrative access
+
+Users can be assigned roles during registration (only if explicitly set), otherwise defaults to `CUSTOMER`.
+
+### Request Example
+
+**Register:**
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "password123",
+    "phone": "+1234567890",
+    "address": "123 Main St",
+    "role": "CUSTOMER"
+  }'
+```
+
+**Login:**
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "password": "password123"
+  }'
+```
+
+The JWT token will be automatically set in cookies after successful login/register.
+
+## Postman Collection
+
+A complete Postman collection is available for testing all API endpoints.
+
+### Import Collection
+
+1. Open Postman application
+2. Click **Import** button
+3. Navigate to `postman/` directory
+4. Import both files:
+   - `Order-Management-API.postman_collection.json`
+   - `Order-Management-API.postman_environment.json`
+5. Select the **Order Management API - Local** environment from the dropdown
+
+### Collection Features
+
+- Pre-configured requests for all endpoints
+- Automatic cookie management for authentication
+- Test scripts for response validation
+- Environment variables for easy configuration
+- Separate requests for Customer and Admin users
+
+For detailed instructions, see [postman/README.md](postman/README.md).
 
 ## Socket.IO
 
