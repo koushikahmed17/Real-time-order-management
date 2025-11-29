@@ -49,8 +49,18 @@ newman run postman/Order-Management-API.postman_collection.json -e postman/Order
 - `POST /api/auth/logout` - Logout and clear cookies
 
 ### Order Management
-- `POST /api/orders` - Create a new order (Protected)
-- `POST /api/orders` (PayPal) - Create order with PayPal payment method
+- `POST /api/orders` - Create a new order with Stripe payment (Protected)
+  - Returns: `clientSecret` for Stripe payment confirmation
+- `POST /api/orders` (PayPal) - Create order with PayPal payment method (Protected)
+  - Returns: `approvalUrl` for PayPal checkout redirect
+
+### Webhooks
+- `POST /api/webhooks/stripe` - Stripe webhook endpoint
+  - Handles: `payment_intent.succeeded`, `payment_intent.payment_failed`
+  - Updates order payment and order status automatically
+- `POST /api/webhooks/paypal` - PayPal webhook endpoint
+  - Handles: `PAYMENT.CAPTURE.COMPLETED`, `DENIED`, `REFUNDED`
+  - Updates order payment and order status automatically
 
 ### Examples
 - `GET /api/examples` - Get all examples
@@ -79,7 +89,9 @@ newman run postman/Order-Management-API.postman_collection.json -e postman/Order
 4. **Create an order:**
    - Use "Create Order" request after logging in
    - The request requires authentication (Bearer token or cookie)
-   - The order ID will be automatically saved to the environment
+   - **Stripe**: Response includes `clientSecret` for frontend payment confirmation
+   - **PayPal**: Response includes `approvalUrl` for redirecting user to PayPal checkout
+   - The order ID and payment details will be automatically saved to the environment
 
 ### Testing
 
@@ -87,7 +99,9 @@ The collection includes test scripts that:
 - Validate response status codes
 - Check response structure
 - Save tokens (`access_token`, `refresh_token`) to environment variables after login
-- Save `order_id` after creating an order
+- Save `order_id` and payment details after creating an order
+- For Stripe: saves `stripe_client_secret` and `stripe_payment_intent_id`
+- For PayPal: saves `paypal_approval_url` and `paypal_order_id`
 
 ## Notes
 
@@ -96,6 +110,27 @@ The collection includes test scripts that:
 - For Bearer token authentication, use the Authorization header with the `{{access_token}}` variable
 - Make sure your server is running before making requests
 - Login responses now return only `accessToken` and `refreshToken` (no user data)
+
+### Payment Testing
+
+**Stripe:**
+- Use Stripe test cards (e.g., `4242 4242 4242 4242`) for testing
+- Use Stripe CLI to forward webhooks: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
+- The webhook will automatically update order status when payment succeeds
+
+**PayPal:**
+- Use PayPal sandbox accounts for testing
+- Configure webhooks in PayPal Developer Dashboard
+- The webhook will automatically update order status when payment completes
+
+### Webhook Testing
+
+⚠️ **Note**: Webhook endpoints require proper signature verification. For local testing:
+
+- **Stripe**: Use Stripe CLI (`stripe listen --forward-to localhost:3000/api/webhooks/stripe`)
+- **PayPal**: Use PayPal Developer Dashboard webhook simulator or ngrok for local testing
+
+The webhook requests in the collection are examples and may not work without proper signatures. Use the tools mentioned above for actual testing.
 
 ## Customization
 

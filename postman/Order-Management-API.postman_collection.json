@@ -348,9 +348,13 @@
                   "        pm.expect(jsonData.data.order).to.have.property('totalAmount');",
                   "        pm.expect(jsonData.data.order).to.have.property('paymentMethod');",
                   "        pm.expect(jsonData.data.order).to.have.property('items');",
+                  "        pm.expect(jsonData.data.payment).to.have.property('clientSecret');",
+                  "        pm.expect(jsonData.data.payment.paymentMethod).to.equal('STRIPE');",
                   "        ",
-                  "        // Save order ID to environment",
+                  "        // Save order ID and payment details to environment",
                   "        pm.environment.set('order_id', jsonData.data.order.id);",
+                  "        pm.environment.set('stripe_client_secret', jsonData.data.payment.clientSecret);",
+                  "        pm.environment.set('stripe_payment_intent_id', jsonData.data.payment.paymentIntentId);",
                   "    });",
                   "}"
                 ],
@@ -402,7 +406,13 @@
                   "        var jsonData = pm.response.json();",
                   "        pm.expect(jsonData.success).to.be.true;",
                   "        pm.expect(jsonData.data.order.paymentMethod).to.equal('PAYPAL');",
-                  "        pm.expect(jsonData.data.payment).to.have.property('paymentUrl');",
+                  "        pm.expect(jsonData.data.payment).to.have.property('approvalUrl');",
+                  "        pm.expect(jsonData.data.payment).to.have.property('paypalOrderId');",
+                  "        ",
+                  "        // Save PayPal payment details to environment",
+                  "        pm.environment.set('order_id', jsonData.data.order.id);",
+                  "        pm.environment.set('paypal_approval_url', jsonData.data.payment.approvalUrl);",
+                  "        pm.environment.set('paypal_order_id', jsonData.data.payment.paypalOrderId);",
                   "    });",
                   "}"
                 ],
@@ -438,6 +448,92 @@
               "path": ["api", "orders"]
             },
             "description": "Create a new order with PayPal payment method"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Stripe Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Webhook received\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('received');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_webhook_signature}}",
+                "description": "Stripe webhook signature (automatically added by Stripe)"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_test_webhook\",\n  \"object\": \"event\",\n  \"api_version\": \"2024-06-20.acacia\",\n  \"created\": 1326853478,\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_test_payment_intent\",\n      \"object\": \"payment_intent\",\n      \"amount\": 12000,\n      \"currency\": \"usd\",\n      \"metadata\": {\n        \"orderId\": \"{{order_id}}\"\n      },\n      \"status\": \"succeeded\"\n    }\n  },\n  \"livemode\": false,\n  \"pending_webhooks\": 1,\n  \"request\": {\n    \"id\": null,\n    \"idempotency_key\": null\n  },\n  \"type\": \"payment_intent.succeeded\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/webhooks/stripe",
+              "host": ["{{base_url}}"],
+              "path": ["api", "webhooks", "stripe"]
+            },
+            "description": "Stripe webhook endpoint for payment status updates. Note: In production, Stripe automatically sends webhooks with proper signature. For testing, use Stripe CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`"
+          },
+          "response": []
+        },
+        {
+          "name": "PayPal Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Webhook received\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('received');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"WH-test-webhook-id\",\n  \"event_version\": \"1.0\",\n  \"create_time\": \"2024-01-01T00:00:00.000Z\",\n  \"resource_type\": \"capture\",\n  \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\",\n  \"summary\": \"Payment completed\",\n  \"resource\": {\n    \"id\": \"CAPTURE-test-id\",\n    \"status\": \"COMPLETED\",\n    \"purchase_units\": [\n      {\n        \"reference_id\": \"{{order_id}}\",\n        \"amount\": {\n          \"currency_code\": \"USD\",\n          \"value\": \"120.00\"\n        }\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/webhooks/paypal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "webhooks", "paypal"]
+            },
+            "description": "PayPal webhook endpoint for payment status updates. Note: In production, PayPal automatically sends webhooks. Configure in PayPal Developer Dashboard."
           },
           "response": []
         }

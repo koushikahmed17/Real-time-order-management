@@ -1,12 +1,13 @@
-import express, { Application } from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
-import { createServer } from 'http';
-import routes from './routes';
-import { errorHandler } from './utils/errorHandler';
-import { notFoundHandler } from './middlewares';
-import { initializeSocket } from './socket';
+import express, { Application } from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+import { createServer } from "http";
+import routes from "./routes";
+import webhookRoutes from "./routes/webhook.routes";
+import { errorHandler } from "./utils/errorHandler";
+import { notFoundHandler } from "./middlewares";
+import { initializeSocket } from "./socket";
 
 // Load environment variables
 dotenv.config();
@@ -22,15 +23,23 @@ initializeSocket(server);
 
 // Middlewares
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: process.env.CLIENT_URL || "*",
   credentials: true,
 }));
+
+// Raw body for webhook routes only (before other parsers)
+app.use("/api/webhooks", express.raw({ type: "application/json" }));
+
+// Webhook routes (must be before JSON parser)
+app.use("/api/webhooks", webhookRoutes);
+
+// JSON parser for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Routes
-app.use('/api', routes);
+// Other routes
+app.use("/api", routes);
 
 // 404 Handler
 app.use(notFoundHandler);

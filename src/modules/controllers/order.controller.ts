@@ -9,10 +9,11 @@ export class OrderController {
     const userId = req.user!.id;
     const result = await orderService.createOrder(userId, req.body);
 
-    // Initialize payment (placeholder - will be implemented later)
+    // Initialize payment (creates checkout session/approval URL)
     const paymentInit = await orderService.initializePayment(
       result.id,
-      result.paymentMethod
+      result.paymentMethod,
+      result.items
     );
 
     res.status(201).json({

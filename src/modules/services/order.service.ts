@@ -112,7 +112,8 @@ export class OrderService {
    */
   async initializePayment(
     orderId: string,
-    paymentMethod: PaymentMethod
+    paymentMethod: PaymentMethod,
+    items: OrderItem[]
   ): Promise<any> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -126,7 +127,8 @@ export class OrderService {
     return this.paymentService.initializePayment(
       orderId,
       paymentMethod,
-      order.totalAmount
+      order.totalAmount,
+      items
     );
   }
 }

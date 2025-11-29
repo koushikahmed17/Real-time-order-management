@@ -1,40 +1,49 @@
 import { PaymentMethod, PaymentStatus } from "@prisma/client";
 import prisma from "../../prisma/client";
 import { AppError } from "../../utils/errorHandler";
+import { StripeService } from "./stripe.service";
+import { PayPalService } from "./paypal.service";
 
 export interface PaymentInitResponse {
   orderId: string;
   paymentMethod: PaymentMethod;
   amount: number;
-  paymentIntentId?: string;
-  paymentUrl?: string;
+  checkoutUrl?: string; // For Stripe Checkout Session
+  clientSecret?: string; // For Stripe Payment Intent (alternative)
+  approvalUrl?: string; // For PayPal
+  paymentIntentId?: string; // For Stripe Payment Intent
+  sessionId?: string; // For Stripe Checkout Session
+  paypalOrderId?: string; // For PayPal
   status: "initialized" | "pending" | "failed";
-  message: string;
 }
 
 export class PaymentService {
+  private stripeService: StripeService;
+  private paypalService: PayPalService;
+
+  constructor() {
+    this.stripeService = new StripeService();
+    this.paypalService = new PayPalService();
+  }
+
   /**
-   * Initialize Stripe payment
+   * Initialize Stripe payment with Checkout Session (Hosted Payment Page)
    */
   async initializeStripePayment(
     orderId: string,
-    amount: number
+    amount: number,
+    items: Array<{ title: string; price: number; quantity: number }>
   ): Promise<PaymentInitResponse> {
-    // TODO: Implement Stripe payment initialization
-    // Example structure:
-    // const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-    // const paymentIntent = await stripe.paymentIntents.create({
-    //   amount: Math.round(amount * 100), // Convert to cents
-    //   currency: 'usd',
-    //   metadata: { orderId },
-    // });
+    const { checkoutUrl, sessionId } =
+      await this.stripeService.createCheckoutSession(orderId, amount, items);
 
     return {
       orderId,
       paymentMethod: PaymentMethod.STRIPE,
       amount,
+      checkoutUrl,
+      sessionId,
       status: "initialized",
-      message: "Stripe payment initialization - To be implemented",
     };
   }
 
@@ -45,26 +54,16 @@ export class PaymentService {
     orderId: string,
     amount: number
   ): Promise<PaymentInitResponse> {
-    // TODO: Implement PayPal payment initialization
-    // Example structure:
-    // const paypal = require('@paypal/checkout-server-sdk');
-    // const request = new paypal.orders.OrdersCreateRequest();
-    // request.prefer("return=representation");
-    // request.requestBody({
-    //   intent: 'CAPTURE',
-    //   purchase_units: [{
-    //     reference_id: orderId,
-    //     amount: { currency_code: 'USD', value: amount.toString() }
-    //   }]
-    // });
+    const { approvalUrl, paypalOrderId } =
+      await this.paypalService.createOrder(orderId, amount);
 
     return {
       orderId,
       paymentMethod: PaymentMethod.PAYPAL,
       amount,
-      paymentUrl: `https://paypal.com/checkout/${orderId}`, // Placeholder
+      approvalUrl,
+      paypalOrderId,
       status: "initialized",
-      message: "PayPal payment initialization - To be implemented",
     };
   }
 
@@ -74,7 +73,8 @@ export class PaymentService {
   async initializePayment(
     orderId: string,
     paymentMethod: PaymentMethod,
-    amount: number
+    amount: number,
+    items: Array<{ title: string; price: number; quantity: number }>
   ): Promise<PaymentInitResponse> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -86,7 +86,7 @@ export class PaymentService {
 
     switch (paymentMethod) {
       case PaymentMethod.STRIPE:
-        return this.initializeStripePayment(orderId, amount);
+        return this.initializeStripePayment(orderId, amount, items);
       case PaymentMethod.PAYPAL:
         return this.initializePayPalPayment(orderId, amount);
       default:
@@ -95,33 +95,17 @@ export class PaymentService {
   }
 
   /**
-   * Verify payment status (placeholder for webhook handling)
+   * Get Stripe service instance
    */
-  async verifyPayment(orderId: string): Promise<PaymentStatus> {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { paymentStatus: true },
-    });
-
-    if (!order) {
-      throw new AppError("Order not found", 404);
-    }
-
-    // TODO: Implement actual payment verification logic
-    return order.paymentStatus;
+  getStripeService(): StripeService {
+    return this.stripeService;
   }
 
   /**
-   * Update payment status
+   * Get PayPal service instance
    */
-  async updatePaymentStatus(
-    orderId: string,
-    paymentStatus: PaymentStatus
-  ): Promise<void> {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { paymentStatus },
-    });
+  getPayPalService(): PayPalService {
+    return this.paypalService;
   }
 }
 

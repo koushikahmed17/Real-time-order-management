@@ -20,6 +20,10 @@ router.use("/auth", authRoutes);
 // Order routes
 router.use("/orders", orderRoutes);
 
+// Payment routes
+import paymentRoutes from "./payment.routes";
+router.use("/payment", paymentRoutes);
+
 // Import and use other route modules here
 // Example:
 // router.use('/examples', exampleRoutes);
