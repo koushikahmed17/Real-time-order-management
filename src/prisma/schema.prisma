@@ -15,6 +15,24 @@ enum Role {
     ADMIN
 }
 
+enum PaymentMethod {
+    STRIPE
+    PAYPAL
+}
+
+enum PaymentStatus {
+    PENDING
+    PAID
+    FAILED
+}
+
+enum OrderStatus {
+    PENDING
+    PROCESSING
+    SHIPPED
+    DELIVERED
+}
+
 model User {
     id        String   @id @default(uuid())
     name      String
@@ -23,6 +41,31 @@ model User {
     address   String?
     password  String
     role      Role     @default(CUSTOMER)
+    orders    Order[]
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+}
+
+model Product {
+    id          String   @id @default(uuid())
+    title       String
+    description String?
+    price       Float
+    quantity    Int      @default(0)
+    image       String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+}
+
+model Order {
+    id            String        @id @default(uuid())
+    userId        String
+    user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    items         Json // Array of items: [{ title, price, quantity }]
+    totalAmount   Float
+    paymentMethod PaymentMethod
+    paymentStatus PaymentStatus @default(PENDING)
+    orderStatus   OrderStatus   @default(PENDING)
+    createdAt     DateTime      @default(now())
+    updatedAt     DateTime      @updatedAt
 }
