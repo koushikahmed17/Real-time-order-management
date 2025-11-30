@@ -25,5 +25,20 @@ export class OrderController {
       },
     });
   });
+
+  updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { orderStatus } = req.body;
+
+    const result = await orderService.updateOrderStatus(id, orderStatus);
+
+    res.status(200).json({
+      success: true,
+      message: "Order status updated successfully",
+      data: {
+        order: result,
+      },
+    });
+  });
 }
 

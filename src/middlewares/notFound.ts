@@ -9,3 +9,4 @@ export const notFoundHandler = (
   throw new AppError(`Route ${req.originalUrl} not found`, 404);
 };
 
+

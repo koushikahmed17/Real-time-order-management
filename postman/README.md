@@ -54,6 +54,11 @@ newman run postman/Order-Management-API.postman_collection.json -e postman/Order
   - User redirects to checkoutUrl to complete payment
 - `POST /api/orders` (PayPal) - Create order with PayPal payment method (Protected)
   - Returns: `approvalUrl` for PayPal checkout redirect
+- `PATCH /api/orders/:id/status` - Update order status (Admin Only)
+  - Requires: ADMIN role authentication
+  - Body: `{ "orderStatus": "SHIPPED" }`
+  - Available statuses: `PENDING`, `PROCESSING`, `SHIPPED`, `DELIVERED`
+  - Emits Socket.IO notification to order owner instantly
 - `GET /api/payment/order/:orderId` - Get payment URL for existing order
 - `GET /api/payment/success` - Payment success callback (returns JSON)
 - `GET /api/payment/cancel` - Payment cancellation callback (returns JSON)

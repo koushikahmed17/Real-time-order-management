@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { validateRequest } from "../utils";
-import { authenticate } from "../middlewares";
+import { authenticate, authorize } from "../middlewares";
 import { OrderController } from "../modules/controllers/order.controller";
 
 const router = Router();
@@ -9,6 +9,9 @@ const orderController = new OrderController();
 
 // Payment method enum for Zod validation
 const PaymentMethodEnum = z.enum(["STRIPE", "PAYPAL"]);
+
+// Order status enum for Zod validation
+const OrderStatusEnum = z.enum(["PENDING", "PROCESSING", "SHIPPED", "DELIVERED"]);
 
 // Order item schema
 const orderItemSchema = z.object({
@@ -25,6 +28,16 @@ const createOrderSchema = {
   }),
 };
 
+// Update order status validation schema
+const updateOrderStatusSchema = {
+  params: z.object({
+    id: z.string().uuid("Invalid order ID format"),
+  }),
+  body: z.object({
+    orderStatus: OrderStatusEnum,
+  }),
+};
+
 // Routes
 router.post(
   "/",
@@ -33,5 +46,15 @@ router.post(
   orderController.createOrder
 );
 
+// Admin only route: Update order status
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorize("ADMIN"),
+  validateRequest(updateOrderStatusSchema),
+  orderController.updateOrderStatus
+);
+
 export default router;
+
 
