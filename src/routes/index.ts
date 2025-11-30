@@ -1,6 +1,7 @@
 import { Router } from "express";
 import authRoutes from "./auth.routes";
 import orderRoutes from "./order.routes";
+import chatRoutes from "./chat.routes";
 // import exampleRoutes from './example.routes';
 
 const router = Router();
@@ -23,6 +24,9 @@ router.use("/orders", orderRoutes);
 // Payment routes
 import paymentRoutes from "./payment.routes";
 router.use("/payment", paymentRoutes);
+
+// Chatbot routes
+router.use("/chatbot", chatRoutes);
 
 // Import and use other route modules here
 // Example:
